@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>歌詞整理器 — 半形空白換行並移除空行</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial,Helvetica,sans-serif}
+    body{margin:0;background:#0f1724;color:#e6eef8;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+    .card{width:100%;max-width:900px;background:linear-gradient(180deg,#071029, #0b1220);border-radius:12px;padding:20px;box-shadow:0 6px 24px rgba(2,6,23,.6)}
+    h1{margin:0 0 8px;font-size:20px}
+    p{margin:0 0 16px;color:#9fb0cc}
+    textarea{width:100%;height:240px;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#071423;color:inherit;font-size:15px;resize:vertical}
+    .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+    button{background:#1e90ff;border:none;padding:10px 14px;border-radius:8px;color:white;font-weight:600;cursor:pointer}
+    button.secondary{background:#1f2a44}
+    pre{white-space:pre-wrap;background:#071423;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.03);min-height:120px}
+    .muted{color:#7f98b6;font-size:13px}
+    .flex-space{display:flex;gap:8px;align-items:center}
+    .controls{display:flex;gap:8px;align-items:center}
+    .small{font-size:13px;padding:8px 10px}
+    .linklike{background:none;border:0;color:#8fbfff;cursor:pointer;text-decoration:underline;padding:0}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>歌詞整理器</h1>
+    <p>功能：將所有「半形空白」（ASCII 空格）改為換行，並刪除所有空白行。完全在本機執行，不會上傳任何資料。</p>
+
+    <label class="muted">請把歌詞貼到下面，或直接拖放檔案（.txt）</label>
+    <textarea id="input" placeholder="在此貼上原始歌詞..." spellcheck="false"></textarea>
+
+    <div class="row">
+      <div class="controls">
+        <button id="process">處理 (半形空白 → 換行；移除空行)</button>
+        <button id="clear" class="secondary small">清除</button>
+        <button id="copy" class="small">複製結果</button>
+        <button id="download" class="small secondary">下載為 txt</button>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <label class="muted">預覽 / 結果</label>
+      </div>
+    </div>
+
+    <pre id="output" aria-live="polite"></pre>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <div class="muted">說明：只處理半形空白（fullwidth 全形空白不會自動換行）。</div>
+      <div>
+        <button id="example" class="small">載入範例</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const input = document.getElementById('input');
+    const output = document.getElementById('output');
+    const processBtn = document.getElementById('process');
+    const copyBtn = document.getElementById('copy');
+    const clearBtn = document.getElementById('clear');
+    const downloadBtn = document.getElementById('download');
+    const exampleBtn = document.getElementById('example');
+
+    function transform(text){
+      if (!text) return '';
+      // 1) 把半形空白 (U+0020) 全部轉成換行
+      // 2) 以換行拆開，去除每行首尾空白，並刪除空行
+      // 這樣可以避免連續半形空白造成多個空白行
+      const replaced = text.replace(/\u0020/g, '\n');
+      const lines = replaced.split(/\r?\n/).map(l => l.trim()).filter(l => l.length>0);
+      return lines.join('\n');
+    }
+
+    function run(){
+      const raw = input.value;
+      const transformed = transform(raw);
+      output.textContent = transformed;
+      return transformed;
+    }
+
+    processBtn.addEventListener('click', run);
+    clearBtn.addEventListener('click', ()=>{input.value=''; output.textContent='';});
+
+    copyBtn.addEventListener('click', async ()=>{
+      const text = run();
+      if (!text) return alert('沒有內容可以複製');
+      try{
+        await navigator.clipboard.writeText(text);
+        alert('已複製到剪貼簿');
+      }catch(e){
+        prompt('請手動複製下面結果：', text);
+      }
+    });
+
+    downloadBtn.addEventListener('click', ()=>{
+      const text = run();
+      if (!text) return alert('沒有內容可下載');
+      const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'lyrics_processed.txt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    exampleBtn.addEventListener('click', ()=>{
+      const sample = `電影的技術 不斷在進步
+帶我們進入 想像的國度
+
+但有個問題 我想搞清楚
+請大家發到 導演的群組
+
+為什麼現在電影
+一個比一個還長
+但我的膀胱
+還是一樣容量
+
+在我嗑完大可爆米花
+銀幕上打打鬧鬧
+我卻只想尿尿
+
+畫面上是IMAX
+尿意也是快MAX
+銀幕有出水柱
+我也快有水柱
+
+下次入場時
+請發給我
+成人紙尿褲~~`;
+      input.value = sample;
+      run();
+    });
+
+    // 支援拖放 txt 檔
+    window.addEventListener('dragover', (e)=>{e.preventDefault();});
+    window.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      if (!file.type || file.type === '' ) {
+        // 有些 txt 檔沒有 type，繼續讀取
+      }
+      const reader = new FileReader();
+      reader.onload = (ev)=>{
+        input.value = ev.target.result;
+        run();
+      };
+      reader.readAsText(file, 'utf-8');
+    });
+
+    // 當使用者輸入時，立即更新預覽（但不會自動修改原始 textarea）
+    input.addEventListener('input', ()=>{
+      // 只更新 output preview，不改變 textarea 內文
+      const raw = input.value;
+      const transformed = transform(raw);
+      output.textContent = transformed;
+    });
+
+  </script>
+</body>
+</html>
